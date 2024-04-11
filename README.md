@@ -60,7 +60,7 @@ int main(int argc, const char * argv[]) {
 }
 ```
 ```bash
-$ ./load test.png 
+$ ./load CVE-2024-31734.pag
 =================================================================
 ==11405==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x000107206082 at pc 0x000104f21f68 bp 0x00016b74abd0 sp 0x00016b74a390
 READ of size 7 at 0x000107206082 thread T0
