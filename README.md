@@ -168,3 +168,6 @@ Conclusion:
 The presence of a heap buffer overflow vulnerability in the DecodeStream::readUTF8String() function poses a significant risk to the security of the application. By following the recommended mitigations and best practices, developers can reduce the likelihood of exploitation and enhance the overall security posture of the software.
 
 This report highlights the critical need for proactive vulnerability management and secure coding practices to address and mitigate security risks effectively.
+
+
+Patch is here https://github.com/Tencent/libpag/pull/2232 
