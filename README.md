@@ -8,7 +8,11 @@ libpag.so
 Upon some investigation we can get the libay from 
 https://github.com/Tencent/libpag/tree/
 
-after making the libary we can directly load it with some objective c code:
+after making the libary we can directly load it with some objective c code, 
+Q 'why did you not write a harness with the libary and use a Makefike?' 
+
+A: Makefiles are whichcraft and I am lazy, in my head this was an easy method to obtain the goal of a bug. 
+
 ```c
 #import <Foundation/Foundation.h>
 #include <dlfcn.h>
