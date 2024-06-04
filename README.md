@@ -18,50 +18,137 @@ A: Makefiles are whichcraft and I am lazy, in my head this was an easy method to
 #include <dlfcn.h>
 #include <objc/objc.h>
 #include <objc/runtime.h>
-// Define a function to load the image using the dynamic library
-void load(NSString *path) {
+#include <objc/message.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#define MAX_SAMPLE_SIZE 1000000
+#define SHM_SIZE (4 + MAX_SAMPLE_SIZE)
+unsigned char *shm_data;
+
+int setup_shmem(const char *name) {
+    int fd;
+
+    // Get shared memory file descriptor
+    fd = shm_open(name, O_RDONLY, S_IRUSR | S_IWUSR);
+    if (fd == -1) {
+        printf("Error in shm_open\n");
+        return 0;
+    }
+
+    // Map shared memory to process address space
+    shm_data = (unsigned char *)mmap(NULL, SHM_SIZE, PROT_READ, MAP_SHARED, fd, 0);
+    if (shm_data == MAP_FAILED) {
+        printf("Error in mmap\n");
+        return 0;
+    }
+
+    close(fd);
+    return 1;
+}
+
+void load() {
+    char *sample_bytes = NULL;
+    uint32_t sample_size = 0;
     void *handle;
-    char *error;
-    // Open the dynamic library
+
+    sample_size = *(uint32_t *)(shm_data);
+    if (sample_size > MAX_SAMPLE_SIZE) sample_size = MAX_SAMPLE_SIZE;
+    sample_bytes = (char *)malloc(sample_size);
+    memcpy(sample_bytes, shm_data + sizeof(uint32_t), sample_size);
+    NSData *content = [NSData dataWithBytes:sample_bytes length:sample_size];
+    free(sample_bytes);
+
+    // Open the dynamic library libpag.dylib
     handle = dlopen("libpag", RTLD_LAZY);
     if (!handle) {
         NSLog(@"Error opening shared library: %s", dlerror());
         return;
     }
-    // Get the class object for PAGFile
+    NSLog(@"Successfully opened shared library: libpag.dylib");
+
+    // Get the class object for PAGFile from the dynamic library
     Class PAGFileClass = objc_getClass("PAGFile");
     if (!PAGFileClass) {
-        NSLog(@"Failed to get class PAGFile");
+        NSLog(@"Failed to get class PAGFile from dynamic library");
         dlclose(handle);
         return;
     }
-    // Get the method signature for the Load: method
-    SEL loadSelector = NSSelectorFromString(@"Load:");
+    NSLog(@"Successfully got PAGFile class");
+
+    // Convert NSString to SEL for method selector
+    SEL loadSelector = NSSelectorFromString(@"Load:size:");
+    if (!loadSelector) {
+        NSLog(@"Failed to get selector Load:size:");
+        dlclose(handle);
+        return;
+    }
+    NSLog(@"Successfully got selector for Load:size:");
+
+    // Get the method for Load:size: from the dynamic library
     Method loadMethod = class_getClassMethod(PAGFileClass, loadSelector);
     if (!loadMethod) {
-        NSLog(@"Failed to get method Load:");
+        NSLog(@"Failed to get method Load:size:");
         dlclose(handle);
         return;
     }
-    // Get the function pointer for the Load: method
+    NSLog(@"Successfully got method for Load:size:");
+
+    // Get the function pointer (IMP) for Load:size:
     IMP loadFunction = method_getImplementation(loadMethod);
-    ((void (*)(id, SEL, NSString *))loadFunction)(PAGFileClass, loadSelector, path);
+    if (!loadFunction) {
+        NSLog(@"Failed to get function pointer for Load:size:");
+        dlclose(handle);
+        return;
+    }
+    NSLog(@"Successfully got function pointer for Load:size:");
+
+    // Call Load:size: method with the NSData argument
+    id pagFileInstance = ((id (*)(id, SEL, const void *, size_t))loadFunction)(PAGFileClass, loadSelector, [content bytes], [content length]);
+
+    if (pagFileInstance) {
+        NSLog(@"Successfully created PAGFile instance");
+
+        // Example usage of PAGFile instance methods
+        SEL numTextsSelector = NSSelectorFromString(@"numTexts");
+        SEL numImagesSelector = NSSelectorFromString(@"numImages");
+        SEL pathSelector = NSSelectorFromString(@"path");
+
+        if (numTextsSelector && numImagesSelector && pathSelector) {
+            int numTexts = ((int (*)(id, SEL))objc_msgSend)(pagFileInstance, numTextsSelector);
+            int numImages = ((int (*)(id, SEL))objc_msgSend)(pagFileInstance, numImagesSelector);
+            NSString *path = ((NSString *(*)(id, SEL))objc_msgSend)(pagFileInstance, pathSelector);
+
+            NSLog(@"PAGFile loaded with path: %@, number of texts: %d, number of images: %d", path, numTexts, numImages);
+        }
+    } else {
+        NSLog(@"Failed to create PAGFile instance from provided data");
+    }
+
     // Close the dynamic library
     dlclose(handle);
 }
-int main(int argc, const char * argv[]) {
+
+int main(int argc, const char *argv[]) {
     @autoreleasepool {
-        if (argc != 2) {
-            NSLog(@"Usage: %s <image_path>", argv[0]);
+        if (argc < 2) {
+            NSLog(@"Usage: %s <shm_name>", argv[0]);
             return 1;
         }
-        // Convert C string to NSString
-        NSString *path = [NSString stringWithUTF8String:argv[1]];
-        // Call the fuzz function to load the image using the dynamic library
-        load(path);
+
+        if (!setup_shmem(argv[1])) {
+            printf("Error mapping shared memory\n");
+            return 1;
+        }
+
+        load();
     }
     return 0;
 }
+
+
+// clang -o load load.m -framework Foundation -lobjc -ldl -L/Users/harrylockyer/Downloads/libpag\ 2.xcframework/macos-arm64_x86_64/libpag.framework  -fsanitize=address,undefined -fno-omit-frame-pointer -fsanitize=bounds -fsanitize=integer
 ```
 ```bash
 $ ./load CVE-2024-31734.pag
