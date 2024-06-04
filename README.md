@@ -148,7 +148,7 @@ int main(int argc, const char *argv[]) {
 }
 
 
-// clang -o load load.m -framework Foundation -lobjc -ldl -L/Users/harrylockyer/Downloads/libpag\ 2.xcframework/macos-arm64_x86_64/libpag.framework  -fsanitize=address,undefined -fno-omit-frame-pointer -fsanitize=bounds -fsanitize=integer
+// clang -o load load.m -framework Foundation -lobjc -ldl -L/Users/harry/Downloads/libpag\ 2.xcframework/macos-arm64_x86_64/libpag.framework  -fsanitize=address,undefined -fno-omit-frame-pointer -fsanitize=bounds -fsanitize=integer
 ```
 ```bash
 $ ./load CVE-2024-31734.pag
